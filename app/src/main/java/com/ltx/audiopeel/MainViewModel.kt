@@ -20,7 +20,7 @@ import java.io.File
  * 音频提取格式
  */
 enum class OutputFormat(val extension: String, val codec: String) {
-    MP3("mp3", "libmp3lame"), AAC("aac", "aac"), WAV("wav", "pcm_s16le"), FLAC("flac", "flac"), OGG(
+    MP3("mp3", "libmp3lame"), M4A("m4a", "aac"), WAV("wav", "pcm_s16le"), FLAC("flac", "flac"), OGG(
         "ogg",
         "libvorbis"
     )
@@ -97,8 +97,12 @@ class MainViewModel : ViewModel() {
                     } catch (e: Exception) {
                         Log.e("AudioPeel", "获取时长失败: ${e.message}")
                     }
-                    // 构建ffmpeg命令
-                    val cmd = "-y -i $inPath -vn -acodec ${format.codec} $outPath"
+                    // 构建ffmpeg命令（M4A 使用 MP4 容器，输出 .m4a）
+                    val cmd = if (format == OutputFormat.M4A) {
+                        "-y -i \"$inPath\" -vn -c:a ${format.codec} -f mp4 -movflags +faststart \"$outPath\""
+                    } else {
+                        "-y -i \"$inPath\" -vn -acodec ${format.codec} \"$outPath\""
+                    }
                     // 执行异步提取
                     FFmpegKit.executeAsync(cmd, { session ->
                         // 完成回调

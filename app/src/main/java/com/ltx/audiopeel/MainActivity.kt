@@ -2,6 +2,7 @@ package com.ltx.audiopeel
 
 import android.content.Context
 import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -18,7 +19,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,12 +35,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VideoFile
@@ -47,17 +54,23 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,7 +83,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import com.ltx.audiopeel.ui.theme.AudioPeelTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -101,7 +121,7 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     val selectedUri by viewModel.selectedUri.collectAsState()
     val selectedFormat by viewModel.selectedFormat.collectAsState()
-
+    // 视频选择器
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -109,7 +129,7 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
             viewModel.selectVideo(uri)
         }
     }
-
+    // 应用主布局
     Scaffold { paddingValues ->
         Column(
             modifier = Modifier
@@ -120,7 +140,7 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
+            // 视频选择卡片
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
@@ -154,9 +174,8 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                     }
                 }
             }
-
+            // 输出格式选择卡片
             Spacer(modifier = Modifier.height(16.dp))
-
             AnimatedVisibility(visible = selectedUri != null, enter = fadeIn(), exit = fadeOut()) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -165,9 +184,7 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-
                     val formats = OutputFormat.entries
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -179,9 +196,8 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                                 label = { Text(format.name) })
                         }
                     }
-
+                    // 提取音频按钮
                     Spacer(modifier = Modifier.height(16.dp))
-
                     Button(
                         onClick = { viewModel.extractAudio(context) },
                         modifier = Modifier
@@ -209,9 +225,8 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                     }
                 }
             }
-
+            // 提取结果卡片
             Spacer(modifier = Modifier.height(16.dp))
-
             AnimatedVisibility(
                 visible = state is ExtractionState.Success || state is ExtractionState.Error,
                 enter = fadeIn(),
@@ -222,7 +237,7 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                         var customFileName by remember(currentState.outPath) {
                             mutableStateOf(File(currentState.outPath).nameWithoutExtension)
                         }
-
+                        // 成功提取音频卡片
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
@@ -243,7 +258,7 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                                 Text("提取成功", fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 val isNameValid = customFileName.trim().isNotEmpty()
-
+                                // 自定义文件名输入框
                                 OutlinedTextField(
                                     value = customFileName,
                                     onValueChange = { customFileName = it },
@@ -269,8 +284,11 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                                         textAlign = TextAlign.Start
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(8.dp))
-
+                                Spacer(modifier = Modifier.height(12.dp))
+                                // 音频播放器
+                                AudioPlayerView(currentState.outPath)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                // 分享和保存按钮
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -318,7 +336,7 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                             }
                         }
                     }
-
+                    // 提取错误卡片
                     is ExtractionState.Error -> {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -348,7 +366,6 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                             }
                         }
                     }
-
                     else -> {}
                 }
             }
@@ -464,5 +481,187 @@ fun openMusicFolder(context: Context) {
     } catch (e: Exception) {
         e.printStackTrace()
         Toast.makeText(context, "无法打开文件夹", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * 音频播放器视图
+ *
+ * @param filePath 音频文件路径
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AudioPlayerView(filePath: String) {
+    val context = LocalContext.current
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            val mediaItem = MediaItem.fromUri(Uri.fromFile(File(filePath)))
+            setMediaItem(mediaItem)
+            prepare()
+        }
+    }
+    // 播放状态和位置
+    var isPlaying by remember { mutableStateOf(false) }
+    var currentPosition by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(0L) }
+    var metadataDuration by remember(filePath) { mutableLongStateOf(0L) }
+    var isSeeking by remember { mutableStateOf(false) }
+    LaunchedEffect(filePath) {
+        metadataDuration = withContext(Dispatchers.IO) {
+            getAudioDurationFromMetadata(filePath)
+        }
+        if (duration <= 0L && metadataDuration > 0L) {
+            duration = metadataDuration
+        }
+    }
+    // 监听播放状态变化
+    DisposableEffect(Unit) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlayingChanged: Boolean) {
+                isPlaying = isPlayingChanged
+            }
+
+            // 监听播放位置变化
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    val playerDuration = normalizeDuration(exoPlayer.duration)
+                    duration = if (playerDuration > 0L) playerDuration else metadataDuration
+                } else if (playbackState == Player.STATE_ENDED) {
+                    currentPosition = 0L
+                    exoPlayer.seekTo(0L)
+                    exoPlayer.pause()
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+    // 更新当前播放位置
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            if (!isSeeking) {
+                currentPosition = exoPlayer.currentPosition
+            }
+            delay(100)
+        }
+    }
+    // 播放控制按钮和进度条
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(onClick = {
+                if (isPlaying) {
+                    exoPlayer.pause()
+                } else {
+                    exoPlayer.play()
+                }
+            }) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "暂停" else "播放",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            // 播放进度条
+            val interactionSource = remember { MutableInteractionSource() }
+            Slider(
+                value = if (duration > 0) {
+                    (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }, onValueChange = { progress ->
+                    isSeeking = true
+                    if (duration > 0) {
+                        currentPosition = (progress * duration).toLong()
+                    }
+                }, onValueChangeFinished = {
+                    isSeeking = false
+                    exoPlayer.seekTo(currentPosition)
+                }, modifier = Modifier.weight(1f), interactionSource = interactionSource, thumb = {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary, shape = CircleShape
+                            )
+                    )
+                }, track = { sliderState ->
+                    SliderDefaults.Track(
+                        colors = SliderDefaults.colors(
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        sliderState = sliderState,
+                        drawStopIndicator = null,
+                        thumbTrackGapSize = 0.dp,
+                        modifier = Modifier.height(3.dp)
+                    )
+                })
+            // 显示当前时间和总时长
+            Text(
+                text = formatTime(currentPosition) + " / " + formatTime(duration),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+    }
+}
+
+/**
+ * 格式化时间为字符串格式(分钟:秒)
+ *
+ * @param ms 时间毫秒数
+ * @return 格式化后的时间字符串
+ */
+private fun formatTime(ms: Long): String {
+    val safeMs = normalizeDuration(ms)
+    if (safeMs <= 0L) return "00:00"
+    val totalSeconds = safeMs / 1000
+    val seconds = totalSeconds % 60
+    val minutes = (totalSeconds / 60) % 60
+    val hours = totalSeconds / 3600
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
+    }
+}
+
+/**
+ * 归一化时间毫秒数(将无效值转换为0L)
+ *
+ * @param ms 时间毫秒数
+ * @return 归一化后的时间毫秒数
+ */
+private fun normalizeDuration(ms: Long): Long {
+    if (ms == C.TIME_UNSET || ms <= 0L) return 0L
+    return ms
+}
+
+/**
+ * 从文件路径获取音频文件的总时长(毫秒)
+ *
+ * @param filePath 音频文件路径
+ * @return 音频文件的总时长(毫秒)
+ */
+private fun getAudioDurationFromMetadata(filePath: String): Long {
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(filePath)
+        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            ?.coerceAtLeast(0L) ?: 0L
+    } catch (_: Exception) {
+        0L
+    } finally {
+        runCatching { retriever.release() }
     }
 }
