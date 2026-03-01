@@ -76,6 +76,10 @@ class MainViewModel : ViewModel() {
                     // 构建输出路径
                     val outDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC)
                         ?: context.cacheDir
+                    // 清理之前提取的音频文件
+                    outDir.listFiles()?.filter {
+                        it.isFile
+                    }?.forEach { it.delete() }
                     // 生成唯一文件名
                     val timeStamp = SimpleDateFormat(
                         "yyyyMMdd_HHmmss", Locale.getDefault()
