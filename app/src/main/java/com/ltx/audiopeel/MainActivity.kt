@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Pause
@@ -221,6 +222,24 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
                             Text("正在提取 $progressPercent%")
                         } else {
                             Text("开始提取音频", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    // 取消提取按钮
+                    AnimatedVisibility(
+                        visible = state is ExtractionState.Processing,
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        OutlinedButton(
+                            onClick = { viewModel.cancelExtraction() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "取消提取")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("取消提取")
                         }
                     }
                 }
@@ -520,7 +539,6 @@ fun AudioPlayerView(filePath: String) {
             override fun onIsPlayingChanged(isPlayingChanged: Boolean) {
                 isPlaying = isPlayingChanged
             }
-
             // 监听播放位置变化
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {

@@ -36,6 +36,7 @@ enum class OutputFormat(val extension: String) {
 sealed class ExtractionState {
     data object Idle : ExtractionState()
     data class Processing(val progress: Float) : ExtractionState()
+    data object Cancelled : ExtractionState()
     data class Success(val outPath: String) : ExtractionState()
     data class Error(val message: String) : ExtractionState()
 }
@@ -51,6 +52,10 @@ class MainViewModel : ViewModel() {
     private val _selectedFormat = MutableStateFlow(OutputFormat.M4A)
     val selectedFormat: StateFlow<OutputFormat> = _selectedFormat.asStateFlow()
     private var lastProgressUpdate = 0L
+    @Volatile
+    private var currentSessionId: Long? = null
+    @Volatile
+    private var cancelRequested = false
 
     fun selectVideo(uri: Uri?) {
         _selectedUri.value = uri
@@ -68,7 +73,11 @@ class MainViewModel : ViewModel() {
      */
     fun extractAudio(context: Context) {
         val uri = _selectedUri.value ?: return
+        if (_state.value is ExtractionState.Processing) return
         val format = _selectedFormat.value
+        cancelRequested = false
+        lastProgressUpdate = 0L
+        currentSessionId = null
         _state.value = ExtractionState.Processing(0f)
         viewModelScope.launch {
              withContext(Dispatchers.IO) {
@@ -157,13 +166,21 @@ class MainViewModel : ViewModel() {
                     // 执行异步提取
                     Log.d("AudioPeel", "SAF输入: $safInput")
                     Log.d("AudioPeel", "FFmpeg命令: $cmd")
-                    FFmpegKit.executeAsync(cmd, { session ->
+                    val session = FFmpegKit.executeAsync(cmd, { currentSession ->
                         // 完成回调
-                        val returnCode = session.returnCode
-                        if (ReturnCode.isSuccess(returnCode)) {
+                        val returnCode = currentSession.returnCode
+                        val cancelled = cancelRequested || ReturnCode.isCancel(returnCode)
+                        currentSessionId = null
+                        cancelRequested = false
+                        if (cancelled) {
+                            if (outFile.exists()) {
+                                outFile.delete()
+                            }
+                            _state.value = ExtractionState.Cancelled
+                        } else if (ReturnCode.isSuccess(returnCode)) {
                             _state.value = ExtractionState.Success(outPath)
                         } else {
-                            val logs = session.allLogsAsString
+                            val logs = currentSession.allLogsAsString
                             Log.e("AudioPeel", "FFmpeg Error $returnCode: $logs")
                             _state.value = ExtractionState.Error("提取失败")
                         }
@@ -182,10 +199,28 @@ class MainViewModel : ViewModel() {
                             }
                         }
                     })
+                    currentSessionId = session.sessionId
                 } catch (e: Exception) {
-                    _state.value = ExtractionState.Error(e.message ?: "未知错误")
+                    currentSessionId = null
+                    if (cancelRequested) {
+                        cancelRequested = false
+                        _state.value = ExtractionState.Cancelled
+                    } else {
+                        _state.value = ExtractionState.Error(e.message ?: "未知错误")
+                    }
                 }
             }
+        }
+    }
+
+    fun cancelExtraction() {
+        if (_state.value !is ExtractionState.Processing) return
+        cancelRequested = true
+        val sessionId = currentSessionId
+        if (sessionId != null) {
+            FFmpegKit.cancel(sessionId)
+        } else {
+            FFmpegKit.cancel()
         }
     }
 }
