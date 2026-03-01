@@ -1,12 +1,15 @@
 package com.ltx.audiopeel
 
 import android.content.Context
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.FFprobeKit
+import com.arthenica.ffmpegkit.FFmpegKitConfig
 import com.arthenica.ffmpegkit.ReturnCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,15 +18,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /**
  * 音频提取格式
  */
-enum class OutputFormat(val extension: String, val codec: String) {
-    MP3("mp3", "libmp3lame"), M4A("m4a", "aac"), WAV("wav", "pcm_s16le"), FLAC("flac", "flac"), OGG(
-        "ogg",
-        "libvorbis"
-    )
+enum class OutputFormat(val extension: String) {
+    MP3("mp3"), M4A("m4a"),
+    WAV("wav"), FLAC("flac"),
+    OGG("ogg")
 }
 
 /**
@@ -44,8 +48,9 @@ class MainViewModel : ViewModel() {
     val state: StateFlow<ExtractionState> = _state.asStateFlow()
     private val _selectedUri = MutableStateFlow<Uri?>(null)
     val selectedUri: StateFlow<Uri?> = _selectedUri.asStateFlow()
-    private val _selectedFormat = MutableStateFlow(OutputFormat.MP3)
+    private val _selectedFormat = MutableStateFlow(OutputFormat.M4A)
     val selectedFormat: StateFlow<OutputFormat> = _selectedFormat.asStateFlow()
+    private var lastProgressUpdate = 0L
 
     fun selectVideo(uri: Uri?) {
         _selectedUri.value = uri
@@ -64,46 +69,90 @@ class MainViewModel : ViewModel() {
     fun extractAudio(context: Context) {
         val uri = _selectedUri.value ?: return
         val format = _selectedFormat.value
-        // 检查是否有足够的权限
         _state.value = ExtractionState.Processing(0f)
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
+             withContext(Dispatchers.IO) {
                 try {
-                    val tempInputFile = File(context.cacheDir, "temp_input_video")
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        tempInputFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    } ?: throw Exception("无法读取视频文件")
                     // 构建输出路径
-                    val inPath = tempInputFile.absolutePath
                     val outDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC)
                         ?: context.cacheDir
                     // 生成唯一文件名
-                    val timeStamp =
-                        java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
-                            .format(java.util.Date())
+                    val timeStamp = SimpleDateFormat(
+                        "yyyyMMdd_HHmmss", Locale.getDefault()
+                    ).format(java.util.Date())
                     val fileName = "audio_${timeStamp}.${format.extension}"
                     val outFile = File(outDir, fileName)
                     val outPath = outFile.absolutePath
-                    // 获取媒体总时长以便计算进度
+                    // 使用Android原生API获取媒体信息
                     var totalDurationMs = 0L
+                    var sourceAudioCodec = ""
+                    // 获取时长
                     try {
-                        val mediaInformationSession = FFprobeKit.getMediaInformation(inPath)
-                        val mediaInformation = mediaInformationSession.mediaInformation
-                        if (mediaInformation?.duration != null) {
-                            totalDurationMs = (mediaInformation.duration.toDouble() * 1000).toLong()
-                        }
+                        val retriever = MediaMetadataRetriever()
+                        retriever.setDataSource(context, uri)
+                        totalDurationMs = retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_DURATION
+                        )?.toLongOrNull() ?: 0L
+                        retriever.release()
                     } catch (e: Exception) {
                         Log.e("AudioPeel", "获取时长失败: ${e.message}")
                     }
-                    // 构建ffmpeg命令（M4A 使用 MP4 容器，输出 .m4a）
-                    val cmd = if (format == OutputFormat.M4A) {
-                        "-y -i \"$inPath\" -vn -c:a ${format.codec} -f mp4 -movflags +faststart \"$outPath\""
-                    } else {
-                        "-y -i \"$inPath\" -vn -acodec ${format.codec} \"$outPath\""
+                    // 获取音频编码格式
+                    try {
+                        val extractor = MediaExtractor()
+                        extractor.setDataSource(context, uri, null)
+                        for (i in 0 until extractor.trackCount) {
+                            val trackFormat = extractor.getTrackFormat(i)
+                            val mime = trackFormat.getString(MediaFormat.KEY_MIME) ?: ""
+                            if (mime.startsWith("audio/")) {
+                                sourceAudioCodec = when {
+                                    mime.contains("mp4a") -> "aac"
+                                    mime == "audio/mpeg" -> "mp3"
+                                    mime.contains("vorbis") -> "vorbis"
+                                    mime.contains("opus") -> "opus"
+                                    mime.contains("flac") -> "flac"
+                                    mime.contains("raw") -> "pcm"
+                                    else -> mime.substringAfter("audio/")
+                                }
+                                break
+                            }
+                        }
+                        extractor.release()
+                    } catch (e: Exception) {
+                        Log.e("AudioPeel", "获取音频编码失败: ${e.message}")
+                    }
+                    // 为FFmpeg创建独立的SAF
+                    val safInput = FFmpegKitConfig.getSafParameterForRead(context, uri)
+                    // 限制线程数在1-4之间
+                    val threads = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
+                    // 构建ffmpeg命令
+                    val base = "-y -nostdin -i $safInput -vn -threads $threads"
+                    val cmd = when (format) {
+                        OutputFormat.MP3 -> {
+                            // 如果源音频已是MP3
+                            if (sourceAudioCodec == "mp3") {
+                                // 直接复制音频流
+                                "$base -c:a copy \"$outPath\""
+                            } else {
+                                "$base -c:a libmp3lame -q:a 2 \"$outPath\""
+                            }
+                        }
+                        OutputFormat.M4A -> {
+                            // 如果源音频已是AAC
+                            if (sourceAudioCodec == "aac") {
+                                // 直接复制音频流
+                                "$base -c:a copy -f mp4 -movflags +faststart \"$outPath\""
+                            } else {
+                                "$base -c:a aac -b:a 192k -f mp4 -movflags +faststart \"$outPath\""
+                            }
+                        }
+                        OutputFormat.WAV -> "$base -c:a pcm_s16le -ar 44100 \"$outPath\""
+                        OutputFormat.FLAC -> "$base -c:a flac -compression_level 5 \"$outPath\""
+                        OutputFormat.OGG -> "$base -c:a libvorbis -q:a 5 \"$outPath\""
                     }
                     // 执行异步提取
+                    Log.d("AudioPeel", "SAF输入: $safInput")
+                    Log.d("AudioPeel", "FFmpeg命令: $cmd")
                     FFmpegKit.executeAsync(cmd, { session ->
                         // 完成回调
                         val returnCode = session.returnCode
@@ -112,22 +161,20 @@ class MainViewModel : ViewModel() {
                         } else {
                             val logs = session.allLogsAsString
                             Log.e("AudioPeel", "FFmpeg Error $returnCode: $logs")
-                            _state.value = ExtractionState.Error("提取失败！请检查日志。")
+                            _state.value = ExtractionState.Error("提取失败")
                         }
-                        // 清理临时文件
-                        tempInputFile.delete()
-                    }, { _ ->
-                        // 日志回调
-                    }, { statistics ->
+                    }, { _ -> }, { statistics ->
                         // 进度回调
                         if (totalDurationMs > 0) {
-                            val timeInMilliseconds = statistics.time
-                            if (timeInMilliseconds > 0) {
-                                var progress =
-                                    timeInMilliseconds.toFloat() / totalDurationMs.toFloat()
-                                if (progress > 1f) progress = 1f
-                                if (progress < 0f) progress = 0f
-                                _state.value = ExtractionState.Processing(progress)
+                            val now = System.currentTimeMillis()
+                            if (now - lastProgressUpdate >= 200) {
+                                lastProgressUpdate = now
+                                val timeInMilliseconds = statistics.time
+                                if (timeInMilliseconds > 0) {
+                                    val progress = (timeInMilliseconds.toFloat() / totalDurationMs.toFloat())
+                                        .coerceIn(0f, 1f)
+                                    _state.value = ExtractionState.Processing(progress)
+                                }
                             }
                         }
                     })
