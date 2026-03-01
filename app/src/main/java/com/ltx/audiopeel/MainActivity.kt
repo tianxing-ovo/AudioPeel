@@ -127,7 +127,7 @@ fun AudioExtractorApp(viewModel: MainViewModel = viewModel()) {
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.selectVideo(uri)
+            viewModel.selectVideo(context, uri)
         }
     }
     // 应用主布局

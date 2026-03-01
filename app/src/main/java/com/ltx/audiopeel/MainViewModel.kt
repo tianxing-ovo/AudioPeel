@@ -57,9 +57,43 @@ class MainViewModel : ViewModel() {
     @Volatile
     private var cancelRequested = false
 
-    fun selectVideo(uri: Uri?) {
+    /**
+     * 选择视频文件
+     *
+     * @param context 上下文
+     * @param uri 视频URI
+     */
+    fun selectVideo(context: Context, uri: Uri?) {
         _selectedUri.value = uri
         _state.value = ExtractionState.Idle
+        if (uri == null) return
+        // 检测音频编码并自动选择最佳输出格式
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val extractor = MediaExtractor()
+                    extractor.setDataSource(context, uri, null)
+                    for (i in 0 until extractor.trackCount) {
+                        val format = extractor.getTrackFormat(i)
+                        val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
+                        if (mime.startsWith("audio/")) {
+                            _selectedFormat.value = when {
+                                mime.contains("mp4a") -> OutputFormat.M4A
+                                mime == "audio/mpeg" -> OutputFormat.MP3
+                                mime.contains("flac") -> OutputFormat.FLAC
+                                mime.contains("vorbis") -> OutputFormat.OGG
+                                mime.contains("opus") -> OutputFormat.OGG
+                                else -> OutputFormat.M4A
+                            }
+                            break
+                        }
+                    }
+                    extractor.release()
+                } catch (e: Exception) {
+                    Log.e("AudioPeel", "检测音频编码失败: ${e.message}")
+                }
+            }
+        }
     }
 
     fun selectFormat(format: OutputFormat) {
