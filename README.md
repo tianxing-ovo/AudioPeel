@@ -25,8 +25,17 @@
   - **FLAC**: 高品质无损压缩格式
   - **OGG**: 高效压缩格式
   
+- **🧠 智能格式推荐**  
+  选择视频后自动检测内嵌音频编码，智能选中最佳输出格式（如 AAC→M4A、MP3→MP3），优先走直接复制路径，实现秒级提取。
+
+- **⚡ 极速提取引擎**  
+  - **SAF 直读**: 通过 `FFmpegKitConfig.getSafParameterForRead()` 直接读取视频，跳过文件复制步骤。
+  - **智能流复制**: 当源音频编码与目标格式兼容时（如 AAC→M4A），使用 `-c:a copy` 直接复制音频流，无需转码，18分钟视频仅需数秒。
+  - **多线程转码**: 动态分配 CPU 线程（上限4线程），在需要转码时充分利用多核性能且不影响 UI 流畅度。
+  - **原生媒体探测**: 使用 Android 原生 `MediaExtractor` + `MediaMetadataRetriever` 替代 FFprobe 获取媒体信息，探测速度更快。
+
 - **⏱️ 实时进度展示**  
-  在转换或提取的进程中，直观显示解析与输出进度的环形进度条和准确的百分比读数。
+  在转换或提取的进程中，直观显示解析与输出进度的环形进度条和准确的百分比读数，支持取消提取操作。
 
 - **🎧 内置播放预览**  
   提取或转换成功后，可直接在结果面板中通过底层的原生流媒体引擎 (`Media3 ExoPlayer`) 顺滑地试听音频片段，完美定制进度的丝滑拖拽反馈！
@@ -39,6 +48,9 @@
 - **🔗 应用内快捷无缝分享**  
   通过 Android `FileProvider` 实现全方位文件共享。提取成功后能立刻以文件的形式安全分享至微信、QQ、Telegram 甚至 AirDrop/互传 等任何常用通讯工具中。
 
+- **📦 极致包体优化**  
+  开启 R8 代码压缩混淆与资源压缩，ABI 过滤仅保留 `arm64-v8a` 和 `x86_64`，私有目录自动清理，确保应用体积最小化。
+
 ---
 
 ## 🚀 技术栈与架构
@@ -49,8 +61,10 @@
 - **UI 框架**: Jetpack Compose (采用 Material Design 3 现代视效、全屏内容留白兼容输入法自适应 Edge-to-Edge)
 - **多媒体处理架构**: FFmpegKit (`com.mrljdx:ffmpeg-kit-full`) 用于异步媒体指令高质量抽取操作。
 - **音频引擎**: AndroidX Media3 `ExoPlayer`，提供稳健的高性能试听服务。
+- **媒体探测**: Android 原生 `MediaExtractor` + `MediaMetadataRetriever`，快速获取时长与编码信息。
 - **架构模式**: MVVM (Model-View-ViewModel) 和基于 `StateFlow` 的可观察响应式单向数据流机制。
 - **文件存储规范**: 采用了完全兼容 Android 10+ 的 Scoped Storage（分区存储）的最新 MediaStore API 插入法则。
+- **包体优化**: R8 代码压缩混淆 + 资源压缩 + ABI 过滤 (`arm64-v8a`, `x86_64`)。
 
 ---
 
@@ -78,10 +92,12 @@
 ## 💡 开发历程与已知优化项探索
 在这个工程的演进过程中，我们持续解决并修复了诸多 Android 碎片化开发会碰到的典型历史课业难题。希望能为遇到同类问题的 Android 开发者提供些许思路：
 
-- **SAF 路径兼容拦截**: 修复了 `SAF (Storage Access Framework)` 返回的 content uri 给 `ffmpeg` 时报错不可识别绝对路径的问题（采取了将其作为输入流读入，并自动写入同应用缓存沙盒环境内再执行转换，完毕后丢弃临时文件的缓冲策略）。
+- **SAF 直读优化**: 使用 `FFmpegKitConfig.getSafParameterForRead()` 直接从 `content://` URI 读取视频，彻底消除了文件复制到缓存目录的耗时步骤。同时为 FFprobe 和 FFmpeg 分配独立的 SAF 文件描述符，解决了 `SAF id not found` 的问题。
+- **智能流复制加速**: 通过原生 `MediaExtractor` 检测源音频编码，当编码与目标格式兼容时自动使用 `-c:a copy` 直接复制音频流，避免不必要的转码，实现秒级提取。
 - **兼容全版本的媒体存储机制**: 从根源上梳理了新、老、旧几代 Android 的路径保存机制；对于 Android O 等过渡版本通过 `Documents Provider` 精确锚定 Music 文件夹实现快速路径定位，对更古董的设备则执行传统物理创建方法。
-- **全面适配分区存储机制**: 对于 Android 10+ (Q) 及以上系统采用前卫安全的 `MediaStore.Audio.Media.EXTERNAL_CONTENT_URI` 指绝对相对路径写入，而不再像毒瘤应用一样申请“全盘外置存储强读权限”，真正让 APP 变成一款绿色、清爽又安全的纯工具。
+- **全面适配分区存储机制**: 对于 Android 10+ (Q) 及以上系统采用前卫安全的 `MediaStore.Audio.Media.EXTERNAL_CONTENT_URI` 指绝对相对路径写入，而不再像毒瘤应用一样申请"全盘外置存储强读权限"，真正让 APP 变成一款绿色、清爽又安全的纯工具。
 - **精细雕琢的 MD3 交互**: 对自带的 Slider、ExoPlayer 控制器进行细节化重新排板，攻克了 Jetpack Compose 中多端事件同源时（如：后台媒体进度更新 vs 用户手指高频拖拽时的冲突）的进度弹回抖动问题，实现高度细腻的仿 iOS 阻尼级交互。
+- **包体瘦身**: 开启 R8 压缩混淆 + 资源压缩，ABI 过滤排除不必要的架构，私有目录在每次提取前自动清理历史文件，防止应用数据无限膨胀。
 
 ---
 
