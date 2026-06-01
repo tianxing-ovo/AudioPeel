@@ -5,6 +5,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -19,15 +20,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 /**
  * 音频提取格式
  */
 enum class OutputFormat(val extension: String) {
-    MP3("mp3"), M4A("m4a"),
-    WAV("wav"), FLAC("flac"),
-    OGG("ogg")
+    MP3("mp3"), M4A("m4a"), WAV("wav"), FLAC("flac"), OGG("ogg")
 }
 
 /**
@@ -38,7 +38,7 @@ sealed class ExtractionState {
     data class Processing(val progress: Float) : ExtractionState()
     data object Cancelled : ExtractionState()
     data class Success(val outPath: String) : ExtractionState()
-    data class Error(val message: String) : ExtractionState()
+    data class Error(val message: String? = null, val messageResId: Int? = null) : ExtractionState()
 }
 
 /**
@@ -64,15 +64,17 @@ class MainViewModel : ViewModel() {
      * @param uri 视频URI
      */
     fun selectVideo(context: Context, uri: Uri?) {
+        // 获取全局Application上下文
+        val appContext = context.applicationContext
         _selectedUri.value = uri
         _state.value = ExtractionState.Idle
         if (uri == null) return
         // 检测音频编码并自动选择最佳输出格式
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
+                val extractor = MediaExtractor()
                 try {
-                    val extractor = MediaExtractor()
-                    extractor.setDataSource(context, uri, null)
+                    extractor.setDataSource(appContext, uri, null)
                     for (i in 0 until extractor.trackCount) {
                         val format = extractor.getTrackFormat(i)
                         val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
@@ -88,14 +90,25 @@ class MainViewModel : ViewModel() {
                             break
                         }
                     }
-                    extractor.release()
                 } catch (e: Exception) {
                     Log.e("AudioPeel", "检测音频编码失败: ${e.message}")
+                } finally {
+                    try {
+                        // 确保释放Native资源
+                        extractor.release()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             }
         }
     }
 
+    /**
+     * 选择输出格式
+     *
+     * @param format 输出格式
+     */
     fun selectFormat(format: OutputFormat) {
         _selectedFormat.value = format
     }
@@ -106,6 +119,8 @@ class MainViewModel : ViewModel() {
      * @param context 上下文
      */
     fun extractAudio(context: Context) {
+        // 获取全局Application上下文
+        val appContext = context.applicationContext
         val uri = _selectedUri.value ?: return
         if (_state.value is ExtractionState.Processing) return
         val format = _selectedFormat.value
@@ -114,19 +129,17 @@ class MainViewModel : ViewModel() {
         currentSessionId = null
         _state.value = ExtractionState.Processing(0f)
         viewModelScope.launch {
-             withContext(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
                 try {
                     // 构建输出路径
-                    val outDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC)
-                        ?: context.cacheDir
+                    val outDir = appContext.getExternalFilesDir(Environment.DIRECTORY_MUSIC)
+                        ?: appContext.cacheDir
                     // 清理之前提取的音频文件
-                    outDir.listFiles()?.filter {
-                        it.isFile
-                    }?.forEach { it.delete() }
+                    outDir.listFiles()?.filter { it.isFile }?.forEach { it.delete() }
                     // 生成唯一文件名
                     val timeStamp = SimpleDateFormat(
                         "yyyyMMdd_HHmmss", Locale.getDefault()
-                    ).format(java.util.Date())
+                    ).format(Date())
                     val fileName = "audio_${timeStamp}.${format.extension}"
                     val outFile = File(outDir, fileName)
                     val outPath = outFile.absolutePath
@@ -134,20 +147,26 @@ class MainViewModel : ViewModel() {
                     var totalDurationMs = 0L
                     var sourceAudioCodec = ""
                     // 获取时长
+                    val retriever = MediaMetadataRetriever()
                     try {
-                        val retriever = MediaMetadataRetriever()
-                        retriever.setDataSource(context, uri)
+                        retriever.setDataSource(appContext, uri)
                         totalDurationMs = retriever.extractMetadata(
                             MediaMetadataRetriever.METADATA_KEY_DURATION
                         )?.toLongOrNull() ?: 0L
-                        retriever.release()
                     } catch (e: Exception) {
                         Log.e("AudioPeel", "获取时长失败: ${e.message}")
+                    } finally {
+                        try {
+                            // 确保释放Native资源
+                            retriever.release()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
                     // 获取音频编码格式
+                    val extractor = MediaExtractor()
                     try {
-                        val extractor = MediaExtractor()
-                        extractor.setDataSource(context, uri, null)
+                        extractor.setDataSource(appContext, uri, null)
                         for (i in 0 until extractor.trackCount) {
                             val trackFormat = extractor.getTrackFormat(i)
                             val mime = trackFormat.getString(MediaFormat.KEY_MIME) ?: ""
@@ -164,12 +183,18 @@ class MainViewModel : ViewModel() {
                                 break
                             }
                         }
-                        extractor.release()
                     } catch (e: Exception) {
                         Log.e("AudioPeel", "获取音频编码失败: ${e.message}")
+                    } finally {
+                        try {
+                            // 确保释放Native资源
+                            extractor.release()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
                     // 为FFmpeg创建独立的SAF
-                    val safInput = FFmpegKitConfig.getSafParameterForRead(context, uri)
+                    val safInput = FFmpegKitConfig.getSafParameterForRead(appContext, uri)
                     // 限制线程数在1-4之间
                     val threads = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
                     // 构建ffmpeg命令
@@ -216,7 +241,12 @@ class MainViewModel : ViewModel() {
                         } else {
                             val logs = currentSession.allLogsAsString
                             Log.e("AudioPeel", "FFmpeg Error $returnCode: $logs")
-                            _state.value = ExtractionState.Error("提取失败")
+                            if (outFile.exists()) {
+                                // 删除生成的不完整缓存文件
+                                outFile.delete()
+                            }
+                            _state.value =
+                                ExtractionState.Error(messageResId = R.string.extraction_failed)
                         }
                     }, { _ -> }, { statistics ->
                         // 进度回调
@@ -226,8 +256,10 @@ class MainViewModel : ViewModel() {
                                 lastProgressUpdate = now
                                 val timeInMilliseconds = statistics.time
                                 if (timeInMilliseconds > 0) {
-                                    val progress = (timeInMilliseconds.toFloat() / totalDurationMs.toFloat())
-                                        .coerceIn(0f, 1f)
+                                    val progress =
+                                        (timeInMilliseconds.toFloat() / totalDurationMs.toFloat()).coerceIn(
+                                            0f, 1f
+                                        )
                                     _state.value = ExtractionState.Processing(progress)
                                 }
                             }
@@ -240,13 +272,17 @@ class MainViewModel : ViewModel() {
                         cancelRequested = false
                         _state.value = ExtractionState.Cancelled
                     } else {
-                        _state.value = ExtractionState.Error(e.message ?: "未知错误")
+                        _state.value = ExtractionState.Error(
+                            message = e.message,
+                            messageResId = if (e.message == null) R.string.unknown_error else null
+                        )
                     }
                 }
             }
         }
     }
 
+    /* 取消提取 */
     fun cancelExtraction() {
         if (_state.value !is ExtractionState.Processing) return
         cancelRequested = true
@@ -256,5 +292,11 @@ class MainViewModel : ViewModel() {
         } else {
             FFmpegKit.cancel()
         }
+    }
+
+    /* ViewModel销毁时取消提取 */
+    override fun onCleared() {
+        super.onCleared()
+        cancelExtraction()
     }
 }

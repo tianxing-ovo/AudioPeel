@@ -1,3 +1,29 @@
 <resources>
     <string name="app_name">音频提取器</string>
+    <string name="video_content_description">视频</string>
+    <string name="video_selected">已选择视频</string>
+    <string name="select_video_prompt">请选择需要提取音频的视频</string>
+    <string name="select_video">选择视频</string>
+    <string name="change_video">更换视频</string>
+    <string name="output_format">输出格式</string>
+    <string name="extracting_progress">正在提取 %1$d%%</string>
+    <string name="start_extraction">开始提取音频</string>
+    <string name="cancel_extraction">取消提取</string>
+    <string name="extraction_success">提取成功</string>
+    <string name="filename_no_extension">文件名无需后缀</string>
+    <string name="filename_cannot_be_empty">文件名不能为空</string>
+    <string name="share">分享</string>
+    <string name="save_file">保存文件</string>
+    <string name="open_folder">打开文件夹</string>
+    <string name="open_audio_folder">打开音频文件夹</string>
+    <string name="error">错误</string>
+    <string name="extraction_failed">提取失败</string>
+    <string name="success">成功</string>
+    <string name="toast_saved_to_music">已保存到音乐文件夹</string>
+    <string name="toast_save_failed">保存失败: %1$s</string>
+    <string name="toast_cannot_open_folder">无法打开文件夹</string>
+    <string name="share_audio_title">分享音频</string>
+    <string name="play">播放</string>
+    <string name="pause">暂停</string>
+    <string name="unknown_error">未知错误</string>
 </resources>
