@@ -1,12 +1,14 @@
 # 🎵 AudioPeel
 
-**[中文](README.md) | English**
+**[中文](README.md)** | **English**
 
 A lightweight Android video-to-audio extraction tool, supporting MP3 / M4A / WAV / FLAC / OGG output — ad-free and completely free
 
 ![Version](https://img.shields.io/badge/Version-1.2-blue?style=for-the-badge)
 ![Min SDK](https://img.shields.io/badge/Min_SDK-24_(Android_7.0)-orange?style=for-the-badge)
 [![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android&logoColor=white)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+[![Latest Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/latest/total?style=for-the-badge)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/total?style=for-the-badge)](https://github.com/tianxing-ovo/AudioPeel/releases)
 
 ![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-0095D5?&style=for-the-badge&logo=kotlin&logoColor=white)
@@ -39,7 +41,7 @@ A lightweight Android video-to-audio extraction tool, supporting MP3 / M4A / WAV
 
 - **Smart Format Detection** — Automatically detects the embedded audio codec and selects the optimal output format (e.g., AAC→M4A), prioritizing direct stream copy for instant extraction.
 
-- **Blazing Fast Extraction** — SAF direct read skips file copying, smart stream copy avoids unnecessary transcoding, and multi-threaded processing leverages multi-core performance. An 18-minute video takes just seconds.
+- **Blazing Fast Extraction** — SAF direct read skips file copying, smart stream copy avoids unnecessary transcoding, and multithreaded processing leverages multicore performance. An 18-minute video takes just seconds.
 
 - **Real-time Progress** — Circular progress bar with percentage readout, with cancel support at any time.
 
@@ -49,7 +51,7 @@ A lightweight Android video-to-audio extraction tool, supporting MP3 / M4A / WAV
 
 - **Quick Sharing** — Secure file sharing via FileProvider to WeChat, Telegram, and other apps.
 
-- **Minimal APK Size** — R8 code shrinking + resource shrinking + ABI filtering for the smallest possible install size.
+- **Minimal APK Size** — R8 code shrinking + resource shrinking + ABI filtering for the smallest possible installation size.
 
 ---
 

@@ -1,12 +1,14 @@
 # 🎵 音频提取器 (AudioPeel)
 
-**中文 | [English](README_EN.md)**
+**中文** | **[English](README_EN.md)**
 
 一款轻量级 Android 视频转音频工具，支持快速提取并导出为 MP3 / M4A / WAV / FLAC / OGG 格式，无广告且完全免费
 
 ![Version](https://img.shields.io/badge/Version-1.2-blue?style=for-the-badge)
 ![Min SDK](https://img.shields.io/badge/Min_SDK-24_(Android_7.0)-orange?style=for-the-badge)
 [![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android&logoColor=white)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+[![Latest Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/latest/total?style=for-the-badge)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/total?style=for-the-badge)](https://github.com/tianxing-ovo/AudioPeel/releases)
 
 ![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-0095D5?&style=for-the-badge&logo=kotlin&logoColor=white)
@@ -104,7 +106,7 @@
 
 - **SAF 直读优化** — 使用 `FFmpegKitConfig.getSafParameterForRead()` 直接从 `content://` URI 读取视频，彻底消除文件复制到缓存目录的耗时步骤。同时为 FFprobe 和 FFmpeg 分配独立的 SAF 文件描述符，解决了 `SAF id not found` 问题。
 
-- **智能流复制加速** — 通过原生 `MediaExtractor` 检测源音频编码，当编码与目标格式兼容时自动使用 `-c:a copy` 直接复制音频流，避免不必要的转码，实现秒级提取。
+- **智能流复制加速** — 通过原生 `MediaExtractor` 检测源音频编码，当编码与目标格式兼容时自动使用 `-c:a copy` 直接复制音频流，从而无需转码，实现秒级提取。
 
 - **全版本媒体存储兼容** — 梳理了多代 Android 的路径保存机制：Android 10+ 采用 `MediaStore.Audio.Media.EXTERNAL_CONTENT_URI` 安全写入；过渡版本通过 `Documents Provider` 锚定 Music 文件夹；老版本执行传统物理创建。
 
