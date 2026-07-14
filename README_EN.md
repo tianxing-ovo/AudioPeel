@@ -99,7 +99,7 @@ Built following Google's recommended modern architecture practices, entirely wit
 
 Throughout the development of this project, we tackled several common challenges in Android's fragmented ecosystem. We hope these insights help other developers facing similar issues:
 
-- **SAF Direct Read** — Using `FFmpegKitConfig.getSafParameterForRead()` to read videos directly from `content://` URIs, completely eliminating the time-consuming step of copying files to a cache directory. Separate SAF file descriptors are allocated for FFprobe and FFmpeg to resolve the `SAF id not found` issue.
+- **SAF Direct Read** — SAF (Storage Access Framework) is Android's mechanism for securely accessing user-selected files; after picking a video via the system picker, the app typically receives a `content://` URI rather than a real filesystem path. This project uses `FFmpegKitConfig.getSafParameterForRead()` to convert that URI into an FFmpeg-readable input parameter and read the video directly, completely eliminating the time-consuming step of copying files to a cache directory. Separate SAF file descriptors are allocated for FFprobe and FFmpeg to resolve the `SAF id not found` issue.
 
 - **Smart Stream Copy** — Detecting the source audio codec via native `MediaExtractor`. When the codec is compatible with the target format, `-c:a copy` is used to directly copy the audio stream, avoiding unnecessary transcoding for near-instant extraction.
 

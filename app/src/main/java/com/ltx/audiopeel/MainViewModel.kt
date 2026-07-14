@@ -51,11 +51,59 @@ class MainViewModel : ViewModel() {
     val selectedUri: StateFlow<Uri?> = _selectedUri.asStateFlow()
     private val _selectedFormat = MutableStateFlow(OutputFormat.M4A)
     val selectedFormat: StateFlow<OutputFormat> = _selectedFormat.asStateFlow()
+    private var cachedSourceCodec: String? = null
     private var lastProgressUpdate = 0L
     @Volatile
     private var currentSessionId: Long? = null
     @Volatile
     private var cancelRequested = false
+
+    /**
+     * 探测视频内嵌音频编码
+     *
+     * @return Pair(源编码名, 推荐输出格式)
+     */
+    private fun detectAudio(context: Context, uri: Uri): Pair<String, OutputFormat>? {
+        // 创建媒体提取器
+        val extractor = MediaExtractor()
+        try {
+            // 设置数据源
+            extractor.setDataSource(context, uri, null)
+            // 遍历所有轨道
+            for (i in 0 until extractor.trackCount) {
+                // 获取轨道格式
+                val mime = extractor.getTrackFormat(i)
+                    .getString(MediaFormat.KEY_MIME) ?: continue
+                // 判断是否为音轨
+                if (!mime.startsWith("audio/")) continue
+                // 按完整 MIME 映射为内部编码名
+                val codec = when (mime) {
+                    "audio/mp4a-latm" -> "aac"
+                    "audio/mpeg" -> "mp3"
+                    "audio/flac" -> "flac"
+                    "audio/vorbis" -> "vorbis"
+                    "audio/opus" -> "opus"
+                    "audio/raw" -> "pcm"
+                    else -> mime.removePrefix("audio/")
+                }
+                // 根据编码名推荐输出格式
+                val recommended = when (codec) {
+                    "aac" -> OutputFormat.M4A
+                    "mp3" -> OutputFormat.MP3
+                    "flac" -> OutputFormat.FLAC
+                    "vorbis", "opus" -> OutputFormat.OGG
+                    else -> OutputFormat.M4A
+                }
+                return codec to recommended
+            }
+        } catch (e: Exception) {
+            Log.w("AudioPeel", "检测音频编码失败: ${e.message}", e)
+        } finally {
+            runCatching { extractor.release() }
+                .onFailure { Log.w("AudioPeel", "释放 MediaExtractor 失败", it) }
+        }
+        return null
+    }
 
     /**
      * 选择视频文件
@@ -66,39 +114,26 @@ class MainViewModel : ViewModel() {
     fun selectVideo(context: Context, uri: Uri?) {
         // 获取全局Application上下文
         val appContext = context.applicationContext
+        // 更新当前选中的视频URI
         _selectedUri.value = uri
+        // 更新状态为空闲
         _state.value = ExtractionState.Idle
-        if (uri == null) return
-        // 检测音频编码并自动选择最佳输出格式
+        // 如果视频URI为空
+        if (uri == null) {
+            // 清空缓存的源编码
+            cachedSourceCodec = null
+            return
+        }
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                val extractor = MediaExtractor()
-                try {
-                    extractor.setDataSource(appContext, uri, null)
-                    for (i in 0 until extractor.trackCount) {
-                        val format = extractor.getTrackFormat(i)
-                        val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
-                        if (mime.startsWith("audio/")) {
-                            _selectedFormat.value = when {
-                                mime.contains("mp4a") -> OutputFormat.M4A
-                                mime == "audio/mpeg" -> OutputFormat.MP3
-                                mime.contains("flac") -> OutputFormat.FLAC
-                                mime.contains("vorbis") -> OutputFormat.OGG
-                                mime.contains("opus") -> OutputFormat.OGG
-                                else -> OutputFormat.M4A
-                            }
-                            break
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("AudioPeel", "检测音频编码失败: ${e.message}")
-                } finally {
-                    try {
-                        // 确保释放Native资源
-                        extractor.release()
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                // 获取Pair(源编码名, 推荐输出格式)
+                val detected = detectAudio(appContext, uri)
+                // 更新缓存的源编码
+                cachedSourceCodec = detected?.first
+                // 如果检测到音频编码
+                if (detected != null) {
+                    // 更新当前选定的输出格式
+                    _selectedFormat.value = detected.second
                 }
             }
         }
@@ -123,6 +158,7 @@ class MainViewModel : ViewModel() {
         val appContext = context.applicationContext
         val uri = _selectedUri.value ?: return
         if (_state.value is ExtractionState.Processing) return
+        // 获取当前选定的输出格式
         val format = _selectedFormat.value
         cancelRequested = false
         lastProgressUpdate = 0L
@@ -145,7 +181,6 @@ class MainViewModel : ViewModel() {
                     val outPath = outFile.absolutePath
                     // 使用Android原生API获取媒体信息
                     var totalDurationMs = 0L
-                    var sourceAudioCodec = ""
                     // 获取时长
                     val retriever = MediaMetadataRetriever()
                     try {
@@ -154,76 +189,58 @@ class MainViewModel : ViewModel() {
                             MediaMetadataRetriever.METADATA_KEY_DURATION
                         )?.toLongOrNull() ?: 0L
                     } catch (e: Exception) {
-                        Log.e("AudioPeel", "获取时长失败: ${e.message}")
+                        Log.w("AudioPeel", "获取时长失败: ${e.message}", e)
                     } finally {
-                        try {
-                            // 确保释放Native资源
-                            retriever.release()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                        runCatching { retriever.release() }
+                            .onFailure { Log.w("AudioPeel", "释放 MediaMetadataRetriever 失败", it) }
                     }
-                    // 获取音频编码格式
-                    val extractor = MediaExtractor()
-                    try {
-                        extractor.setDataSource(appContext, uri, null)
-                        for (i in 0 until extractor.trackCount) {
-                            val trackFormat = extractor.getTrackFormat(i)
-                            val mime = trackFormat.getString(MediaFormat.KEY_MIME) ?: ""
-                            if (mime.startsWith("audio/")) {
-                                sourceAudioCodec = when {
-                                    mime.contains("mp4a") -> "aac"
-                                    mime == "audio/mpeg" -> "mp3"
-                                    mime.contains("vorbis") -> "vorbis"
-                                    mime.contains("opus") -> "opus"
-                                    mime.contains("flac") -> "flac"
-                                    mime.contains("raw") -> "pcm"
-                                    else -> mime.substringAfter("audio/")
-                                }
-                                break
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e("AudioPeel", "获取音频编码失败: ${e.message}")
-                    } finally {
-                        try {
-                            // 确保释放Native资源
-                            extractor.release()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                    // 如果缓存的源编码为空
+                    if (cachedSourceCodec == null) {
+                        // 探测音频编码并更新缓存的源编码
+                        cachedSourceCodec = detectAudio(appContext, uri)?.first
                     }
-                    // 为FFmpeg创建独立的SAF
+                    // 获取缓存的源编码
+                    val sourceAudioCodec = cachedSourceCodec.orEmpty()
+                    // 将 content URI 转为 FFmpeg 可读的 SAF 输入参数
                     val safInput = FFmpegKitConfig.getSafParameterForRead(appContext, uri)
                     // 限制线程数在1-4之间
                     val threads = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
                     // 构建ffmpeg命令
                     val base = "-y -nostdin -i $safInput -vn -threads $threads"
+                    // 源编码与目标格式兼容则复制音轨否则按所选格式转码
                     val cmd = when (format) {
                         OutputFormat.MP3 -> {
-                            // 如果源音频已是MP3
                             if (sourceAudioCodec == "mp3") {
-                                // 直接复制音频流
                                 "$base -c:a copy \"$outPath\""
                             } else {
                                 "$base -c:a libmp3lame -q:a 2 \"$outPath\""
                             }
                         }
                         OutputFormat.M4A -> {
-                            // 如果源音频已是AAC
                             if (sourceAudioCodec == "aac") {
-                                // 直接复制音频流
                                 "$base -c:a copy -f mp4 -movflags +faststart \"$outPath\""
                             } else {
                                 "$base -c:a aac -b:a 192k -f mp4 -movflags +faststart \"$outPath\""
                             }
                         }
                         OutputFormat.WAV -> "$base -c:a pcm_s16le -ar 44100 \"$outPath\""
-                        OutputFormat.FLAC -> "$base -c:a flac -compression_level 5 \"$outPath\""
-                        OutputFormat.OGG -> "$base -c:a libvorbis -q:a 5 \"$outPath\""
+                        OutputFormat.FLAC -> {
+                            if (sourceAudioCodec == "flac") {
+                                "$base -c:a copy \"$outPath\""
+                            } else {
+                                "$base -c:a flac -compression_level 5 \"$outPath\""
+                            }
+                        }
+                        OutputFormat.OGG -> {
+                            when (sourceAudioCodec) {
+                                "vorbis", "opus" ->
+                                    "$base -c:a copy -f ogg \"$outPath\""
+                                else ->
+                                    "$base -c:a libvorbis -q:a 5 \"$outPath\""
+                            }
+                        }
                     }
                     // 执行异步提取
-                    Log.d("AudioPeel", "SAF输入: $safInput")
                     Log.d("AudioPeel", "FFmpeg命令: $cmd")
                     val session = FFmpegKit.executeAsync(cmd, { currentSession ->
                         // 完成回调

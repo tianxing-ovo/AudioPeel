@@ -104,7 +104,7 @@
 
 在工程演进过程中，我们解决了多个 Android 碎片化开发中的典型难题，希望能为遇到同类问题的开发者提供思路：
 
-- **SAF 直读优化** — 使用 `FFmpegKitConfig.getSafParameterForRead()` 直接从 `content://` URI 读取视频，彻底消除文件复制到缓存目录的耗时步骤。同时为 FFprobe 和 FFmpeg 分配独立的 SAF 文件描述符，解决了 `SAF id not found` 问题。
+- **SAF 直读优化** — SAF（Storage Access Framework，存储访问框架）是 Android 安全访问用户所选文件的机制；用户通过系统选择器选视频后，App 拿到的通常是 `content://` URI，而非真实文件路径。本项目使用 `FFmpegKitConfig.getSafParameterForRead()` 将其转为 FFmpeg 可读的输入参数，直接读取视频，彻底消除文件复制到缓存目录的耗时步骤。同时为 FFprobe 和 FFmpeg 分配独立的 SAF 文件描述符，解决了 `SAF id not found` 问题。
 
 - **智能流复制加速** — 通过原生 `MediaExtractor` 检测源音频编码，当编码与目标格式兼容时自动使用 `-c:a copy` 直接复制音频流，从而无需转码，实现秒级提取。
 
