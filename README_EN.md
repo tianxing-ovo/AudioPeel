@@ -1,140 +1,91 @@
-# 🎵 AudioPeel
+# AudioPeel
 
-**[中文](README.md)** | **English**
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-1.2-green)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/total?cacheSeconds=86400)](https://github.com/tianxing-ovo/AudioPeel/releases)
+[![Latest Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/latest/total?cacheSeconds=86400)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
 
-A lightweight Android video-to-audio extraction tool, supporting MP3 / M4A / WAV / FLAC / OGG output — ad-free and completely free
+[简体中文](README.md) | [English](README_EN.md)
 
-![Version](https://img.shields.io/badge/Version-1.2-blue?style=for-the-badge)
-![Min SDK](https://img.shields.io/badge/Min_SDK-24_(Android_7.0)-orange?style=for-the-badge)
-[![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android&logoColor=white)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
-[![Latest Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/latest/total?style=for-the-badge)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
-[![Total Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/total?style=for-the-badge)](https://github.com/tianxing-ovo/AudioPeel/releases)
+A lightweight Android video-to-audio tool. Export to MP3 / M4A / WAV / FLAC / OGG — ad-free and free to use.
 
-![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
-![Kotlin](https://img.shields.io/badge/Kotlin-0095D5?&style=for-the-badge&logo=kotlin&logoColor=white)
-![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)
-![FFmpeg](https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white)
+## Features
 
-## 📸 Screenshots
+- **Video picker** — Uses Android Photo Picker, so selecting a video needs no storage read/write permission
+- **Multiple formats** — Supports MP3 / M4A / WAV / FLAC / OGG
+- **Smart suggestion** — Detects embedded audio codec and suggests a format such as AAC→M4A, preferring stream copy when compatible
+- **Fast extraction** — SAF (Storage Access Framework) direct read reduces copies, stream-copies the audio track when codecs match, and bounds FFmpeg thread count
+- **Progress & cancel** — Circular progress with percentage, and cancel support
+- **Preview** — Media3 ExoPlayer preview with more stable seeking and less jump-back
+- **File management** — Rename and save under `/Music/AudioPeel`, works across Android storage models, and clears old private-output files before each extraction
+- **Share** — FileProvider sharing to apps such as WeChat, QQ, and Telegram
 
-![AudioPeel Screenshot](art/screenshot.png)
+## Quick Start
 
----
+### Requirements
 
-## 📋 Table of Contents
+- Android 7.0 or later (API 24)
 
-- [Features](#-features)
-- [Tech Stack](#-tech-stack--architecture)
-- [Build Guide](#-build-guide)
-- [Development Notes](#-development-notes)
-- [Permissions](#-permissions)
-- [Contributing](#-contributing)
-- [License](#-license)
+### Install
 
----
+1. Download the latest APK from [Releases](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+2. Install and open the app
+3. Pick a video, confirm the output format, then extract
 
-## 🌟 Features
+## Screenshots
 
-- **Simple Video Selection** — Native Android Photo Picker support. No storage permissions required.
+![](art/screenshot.png)
 
-- **Multiple Output Formats** — Export to MP3, M4A, WAV, FLAC, or OGG, covering everything from high-compatibility lossy to lossless formats.
+## Tech Stack
 
-- **Smart Format Detection** — Automatically detects the embedded audio codec and selects the optimal output format (e.g., AAC→M4A), prioritizing direct stream copy for instant extraction.
+| Area | Choice |
+|------|--------|
+| Language | 100% Kotlin |
+| UI | Jetpack Compose + Material Design 3 + Edge-to-Edge |
+| Media processing | FFmpegKit |
+| Audio playback | AndroidX Media3 ExoPlayer |
+| Media probing | `MediaExtractor` + `MediaMetadataRetriever` |
+| Architecture | MVVM + `StateFlow` |
+| Size | R8 + resource shrinking + ABI filters (`arm64-v8a`, `x86_64`) |
 
-- **Blazing Fast Extraction** — SAF direct read skips file copying, smart stream copy avoids unnecessary transcoding, and multithreaded processing leverages multicore performance. An 18-minute video takes just seconds.
-
-- **Real-time Progress** — Circular progress bar with percentage readout, with cancel support at any time.
-
-- **Built-in Audio Preview** — Smooth playback powered by Media3 ExoPlayer with silky seek bar interaction.
-
-- **File Management** — Custom renaming, auto-save to `/Music/AudioPeel`, and one-tap access via system file manager.
-
-- **Quick Sharing** — Secure file sharing via FileProvider to WeChat, Telegram, and other apps.
-
-- **Minimal APK Size** — R8 code shrinking + resource shrinking + ABI filtering for the smallest possible installation size.
-
----
-
-## 🚀 Tech Stack & Architecture
-
-Built following Google's recommended modern architecture practices, entirely with native solutions:
-
-| Module            | Technology                                                             |
-|-------------------|------------------------------------------------------------------------|
-| Language          | 100% Kotlin                                                            |
-| UI Framework      | Jetpack Compose + Material Design 3 + Edge-to-Edge                     |
-| Media Processing  | FFmpegKit (`com.mrljdx:ffmpeg-kit-full`)                               |
-| Audio Engine      | AndroidX Media3 ExoPlayer                                              |
-| Media Probing     | Native `MediaExtractor` + `MediaMetadataRetriever`                     |
-| Architecture      | MVVM + `StateFlow` unidirectional data flow                            |
-| File Storage      | Scoped Storage + MediaStore API (Android 10+ compatible)               |
-| Size Optimization | R8 shrinking + resource shrinking + ABI filter (`arm64-v8a`, `x86_64`) |
-
----
-
-## 💻 Build Guide
+## Build
 
 ### Prerequisites
 
-1. **Android Studio** (Iguana | 2023.2.1 or later recommended)
-2. **Java 11+** (must be compatible with Gradle version)
-3. **Android SDK Level 36+** (Target SDK API 36 recommended)
+1. **Android Studio** (a recent stable release recommended)
+2. **Java 11+** (compatible with the project Gradle version)
+3. **Android SDK** (`minSdk` 24, `compileSdk` / `targetSdk` 37)
 
-> **Compatibility:** Minimum Android 7.0 (API 24), Target SDK API 36.
-
-### Build Steps
+### Steps
 
 1. Clone the repository:
    ```bash
    git clone https://github.com/tianxing-ovo/AudioPeel.git
    ```
-2. Open the project root directory in Android Studio.
-3. Wait for Gradle to sync and download dependencies.
-4. Connect a physical device or configure an Android emulator.
-5. Click `Run 'app'` or execute `./gradlew assembleDebug` in the terminal.
+2. Open the project root in Android Studio
+3. Wait for Gradle sync
+4. Connect a device or emulator
+5. Run `Run 'app'`, or `./gradlew assembleDebug`
 
----
+## Permissions
 
-## 💡 Development Notes
+Least-privilege by design; no sensitive permissions requested:
 
-Throughout the development of this project, we tackled several common challenges in Android's fragmented ecosystem. We hope these insights help other developers facing similar issues:
+| Note | Detail |
+|------|--------|
+| No storage permission | Video picking uses Photo Picker and `READ_EXTERNAL_STORAGE` is generally not required |
+| No network permission | Fully offline processing with no data upload |
+| No background/notification permission | Not requested |
 
-- **SAF Direct Read** — SAF (Storage Access Framework) is Android's mechanism for securely accessing user-selected files; after picking a video via the system picker, the app typically receives a `content://` URI rather than a real filesystem path. This project uses `FFmpegKitConfig.getSafParameterForRead()` to convert that URI into an FFmpeg-readable input parameter and read the video directly, completely eliminating the time-consuming step of copying files to a cache directory. Separate SAF file descriptors are allocated for FFprobe and FFmpeg to resolve the `SAF id not found` issue.
+## Contributing
 
-- **Smart Stream Copy** — Detecting the source audio codec via native `MediaExtractor`. When the codec is compatible with the target format, `-c:a copy` is used to directly copy the audio stream, avoiding unnecessary transcoding for near-instant extraction.
-
-- **Cross-version Storage Compatibility** — Unified support across multiple Android generations: Android 10+ uses `MediaStore.Audio.Media.EXTERNAL_CONTENT_URI` for secure writes; transitional versions use `Documents Provider` to locate the Music folder; legacy devices use traditional file creation.
-
-- **MD3 Interaction Polish** — Redesigned Slider and ExoPlayer controls to resolve the progress bar snap-back jitter caused by concurrent background media progress updates and user drag events in Jetpack Compose, achieving smooth, damped iOS-like interaction.
-
-- **APK Size Reduction** — R8 code shrinking + resource shrinking + ABI architecture filtering. The private directory is automatically cleaned before each extraction to prevent unbounded data growth.
-
----
-
-## 🔒 Permissions
-
-This app follows the principle of least privilege and requires no sensitive permissions:
-
-| Permission               | Description                                                                       |
-|--------------------------|-----------------------------------------------------------------------------------|
-| No Storage Permission    | Uses Android Photo Picker for video selection — no `READ_EXTERNAL_STORAGE` needed |
-| No Network Permission    | All processing is done locally — no data is uploaded                              |
-| No Background Permission | No background execution or notification permissions requested                     |
-
----
-
-## 🤝 Contributing
-
-Issues and Pull Requests are welcome!
+Issues and Pull Requests are welcome:
 
 1. Fork this repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m "feat: add your feature"`
-4. Push the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
+2. Create a branch: `git checkout -b feature/your-feature`
+3. Commit: `git commit -m "feat: add your feature"`
+4. Push to your fork remote and open a Pull Request
 
----
+## License
 
-## 📜 License
-
-This project is open-sourced under the [MIT License](LICENSE). Feel free to clone, learn from, share, and build upon it.
+This project is released under the [MIT License](LICENSE)
