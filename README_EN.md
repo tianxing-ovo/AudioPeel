@@ -38,15 +38,15 @@ A lightweight Android video-to-audio tool. Export to MP3 / M4A / WAV / FLAC / OG
 
 ## Tech Stack
 
-| Area | Choice |
-|------|--------|
-| Language | 100% Kotlin |
-| UI | Jetpack Compose + Material Design 3 + Edge-to-Edge |
-| Media processing | FFmpegKit |
-| Audio playback | AndroidX Media3 ExoPlayer |
-| Media probing | `MediaExtractor` + `MediaMetadataRetriever` |
-| Architecture | MVVM + `StateFlow` |
-| Size | R8 + resource shrinking + ABI filters (`arm64-v8a`, `x86_64`) |
+|       Area       |                            Choice                             |
+|:----------------:|:-------------------------------------------------------------:|
+|     Language     |                          100% Kotlin                          |
+|        UI        |      Jetpack Compose + Material Design 3 + Edge-to-Edge       |
+| Media processing |                           FFmpegKit                           |
+|  Audio playback  |                   AndroidX Media3 ExoPlayer                   |
+|  Media probing   |          `MediaExtractor` + `MediaMetadataRetriever`          |
+|   Architecture   |                      MVVM + `StateFlow`                       |
+|       Size       | R8 + resource shrinking + ABI filters (`arm64-v8a`, `x86_64`) |
 
 ## Build
 
@@ -71,11 +71,11 @@ A lightweight Android video-to-audio tool. Export to MP3 / M4A / WAV / FLAC / OG
 
 Least-privilege by design; no sensitive permissions requested:
 
-| Note | Detail |
-|------|--------|
-| No storage permission | Video picking uses Photo Picker and `READ_EXTERNAL_STORAGE` is generally not required |
-| No network permission | Fully offline processing with no data upload |
-| No background/notification permission | Not requested |
+|                 Note                  |                                        Detail                                         |
+|:-------------------------------------:|:-------------------------------------------------------------------------------------:|
+|         No storage permission         | Video picking uses Photo Picker and `READ_EXTERNAL_STORAGE` is generally not required |
+|         No network permission         |                     Fully offline processing with no data upload                      |
+| No background/notification permission |                                     Not requested                                     |
 
 ## Contributing
 

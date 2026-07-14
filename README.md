@@ -38,15 +38,15 @@
 
 ## 技术栈与架构
 
-| 模块 | 技术选型 |
-|------|----------|
-| 开发语言 | 100% Kotlin |
+|  模块   |                        技术选型                        |
+|:-----:|:--------------------------------------------------:|
+| 开发语言  |                    100% Kotlin                     |
 | UI 框架 | Jetpack Compose + Material Design 3 + Edge-to-Edge |
-| 多媒体处理 | FFmpegKit |
-| 音频引擎 | AndroidX Media3 ExoPlayer |
-| 媒体探测 | `MediaExtractor` + `MediaMetadataRetriever` |
-| 架构模式 | MVVM + `StateFlow` |
-| 包体优化 | R8 + 资源压缩 + ABI 过滤（`arm64-v8a`、`x86_64`） |
+| 多媒体处理 |                     FFmpegKit                      |
+| 音频引擎  |             AndroidX Media3 ExoPlayer              |
+| 媒体探测  |    `MediaExtractor` + `MediaMetadataRetriever`     |
+| 架构模式  |                 MVVM + `StateFlow`                 |
+| 包体优化  |      R8 + 资源压缩 + ABI 过滤（`arm64-v8a`、`x86_64`）      |
 
 ## 本地编译
 
@@ -71,11 +71,11 @@
 
 应用按最小权限原则设计，不申请敏感权限：
 
-| 说明 | 详情 |
-|------|------|
-| 无存储权限 | 使用 Photo Picker 选视频一般无需 `READ_EXTERNAL_STORAGE` |
-| 无网络权限 | 本地处理不上传数据 |
-| 无后台/通知权限 | 不申请后台运行或通知权限 |
+|    说明    |                       详情                        |
+|:--------:|:-----------------------------------------------:|
+|  无存储权限   | 使用 Photo Picker 选视频一般无需 `READ_EXTERNAL_STORAGE` |
+|  无网络权限   |                    本地处理不上传数据                    |
+| 无后台/通知权限 |                  不申请后台运行或通知权限                   |
 
 ## 参与贡献
 
