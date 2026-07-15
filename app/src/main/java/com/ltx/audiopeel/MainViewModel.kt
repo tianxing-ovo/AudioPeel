@@ -1,12 +1,14 @@
 package com.ltx.audiopeel
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Environment
 import android.util.Log
+import androidx.core.graphics.scale
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.arthenica.ffmpegkit.FFmpegKit
@@ -42,6 +44,16 @@ sealed class ExtractionState {
 }
 
 /**
+ * 视频元数据
+ */
+data class VideoMetadata(
+    val durationMs: Long = 0L,
+    val fileSize: Long = 0L,
+    val audioCodec: String? = null,
+    val thumbnail: Bitmap? = null,
+)
+
+/**
  * 主视图模型
  */
 class MainViewModel : ViewModel() {
@@ -51,10 +63,14 @@ class MainViewModel : ViewModel() {
     val selectedUri: StateFlow<Uri?> = _selectedUri.asStateFlow()
     private val _selectedFormat = MutableStateFlow(OutputFormat.M4A)
     val selectedFormat: StateFlow<OutputFormat> = _selectedFormat.asStateFlow()
+    private val _videoMetadata = MutableStateFlow<VideoMetadata?>(null)
+    val videoMetadata: StateFlow<VideoMetadata?> = _videoMetadata.asStateFlow()
     private var cachedSourceCodec: String? = null
     private var lastProgressUpdate = 0L
+
     @Volatile
     private var currentSessionId: Long? = null
+
     @Volatile
     private var cancelRequested = false
 
@@ -72,8 +88,7 @@ class MainViewModel : ViewModel() {
             // 遍历所有轨道
             for (i in 0 until extractor.trackCount) {
                 // 获取轨道格式
-                val mime = extractor.getTrackFormat(i)
-                    .getString(MediaFormat.KEY_MIME) ?: continue
+                val mime = extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: continue
                 // 判断是否为音轨
                 if (!mime.startsWith("audio/")) continue
                 // 按完整 MIME 映射为内部编码名
@@ -99,8 +114,11 @@ class MainViewModel : ViewModel() {
         } catch (e: Exception) {
             Log.w("AudioPeel", "检测音频编码失败: ${e.message}", e)
         } finally {
-            runCatching { extractor.release() }
-                .onFailure { Log.w("AudioPeel", "释放 MediaExtractor 失败", it) }
+            runCatching { extractor.release() }.onFailure {
+                Log.w(
+                    "AudioPeel", "释放 MediaExtractor 失败", it
+                )
+            }
         }
         return null
     }
@@ -114,6 +132,11 @@ class MainViewModel : ViewModel() {
     fun selectVideo(context: Context, uri: Uri?) {
         // 获取全局Application上下文
         val appContext = context.applicationContext
+        // 释放旧缩略图内存
+        _videoMetadata.value?.thumbnail?.let { bitmap ->
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+        _videoMetadata.value = null
         // 更新当前选中的视频URI
         _selectedUri.value = uri
         // 更新状态为空闲
@@ -135,8 +158,110 @@ class MainViewModel : ViewModel() {
                     // 更新当前选定的输出格式
                     _selectedFormat.value = detected.second
                 }
+                // 提取视频元数据
+                val metadata = extractVideoMetadata(appContext, uri, detected?.first)
+                _videoMetadata.value = metadata
             }
         }
+    }
+
+    /**
+     * 提取视频元数据
+     *
+     * @param context 上下文
+     * @param uri 视频URI
+     * @param audioCodec 音频编码
+     * @return 视频元数据
+     */
+    private fun extractVideoMetadata(
+        context: Context,
+        uri: Uri,
+        audioCodec: String?,
+    ): VideoMetadata {
+        // 获取文件大小
+        val fileSize = resolveFileSize(context, uri)
+        // 获取时长和缩略图
+        var durationMs = 0L
+        var thumbnail: Bitmap? = null
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            durationMs = retriever.extractMetadata(
+                MediaMetadataRetriever.METADATA_KEY_DURATION
+            )?.toLongOrNull() ?: 0L
+            thumbnail = extractThumbnail(retriever, durationMs)
+        } catch (e: Exception) {
+            Log.w("AudioPeel", "提取视频元数据失败: ${e.message}", e)
+        } finally {
+            runCatching { retriever.release() }.onFailure {
+                Log.w(
+                    "AudioPeel", "释放 MediaMetadataRetriever 失败", it
+                )
+            }
+        }
+        return VideoMetadata(
+            durationMs = durationMs,
+            fileSize = fileSize,
+            audioCodec = audioCodec,
+            thumbnail = thumbnail
+        )
+    }
+
+    /**
+     * 解析文件大小
+     *
+     * @param context 上下文
+     * @param uri 视频URI
+     * @return 文件大小
+     */
+    private fun resolveFileSize(context: Context, uri: Uri): Long {
+        return runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                pfd.statSize.takeIf { it > 0 } ?: 0L
+            } ?: 0L
+        }.onFailure {
+            Log.d("AudioPeel", "获取文件大小失败: ${it.message}")
+        }.getOrDefault(0L)
+    }
+
+    /**
+     * 提取视频缩略图
+     *
+     * @param retriever 媒体元数据提取器
+     * @param durationMs 视频总时长毫秒
+     * @return 缩略图
+     */
+    private fun extractThumbnail(retriever: MediaMetadataRetriever, durationMs: Long): Bitmap? {
+        // 获取帧时间
+        val frameTimeUs = if (durationMs >= 1000L) 1_000_000L else 0L
+        // 获取原始缩略图
+        val original =
+            retriever.getFrameAtTime(frameTimeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: return null
+        // 计算缩略图目标尺寸
+        val (targetW, targetH) = computeThumbnailSize(original.width, original.height)
+        // 原图尺寸已足够小则直接返回
+        if (original.width <= targetW && original.height <= targetH) return original
+        // 缩放缩略图
+        return original.scale(targetW, targetH).also {
+            if (it !== original) original.recycle()
+        }
+    }
+
+    /**
+     * 计算缩略图目标尺寸
+     *
+     * @param width 原始宽度
+     * @param height 原始高度
+     * @return Pair(目标宽度, 目标高度)
+     */
+    private fun computeThumbnailSize(width: Int, height: Int): Pair<Int, Int> {
+        val longSide = maxOf(width, height)
+        if (longSide <= THUMBNAIL_MAX_SIZE) return width to height
+        val scale = THUMBNAIL_MAX_SIZE.toFloat() / longSide
+        val targetW = (width * scale).toInt().coerceAtLeast(1)
+        val targetH = (height * scale).toInt().coerceAtLeast(1)
+        return targetW to targetH
     }
 
     /**
@@ -191,8 +316,11 @@ class MainViewModel : ViewModel() {
                     } catch (e: Exception) {
                         Log.w("AudioPeel", "获取时长失败: ${e.message}", e)
                     } finally {
-                        runCatching { retriever.release() }
-                            .onFailure { Log.w("AudioPeel", "释放 MediaMetadataRetriever 失败", it) }
+                        runCatching { retriever.release() }.onFailure {
+                            Log.w(
+                                "AudioPeel", "释放 MediaMetadataRetriever 失败", it
+                            )
+                        }
                     }
                     // 如果缓存的源编码为空
                     if (cachedSourceCodec == null) {
@@ -315,5 +443,14 @@ class MainViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         cancelExtraction()
+        // 释放缩略图内存
+        _videoMetadata.value?.thumbnail?.let { bitmap ->
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+        _videoMetadata.value = null
+    }
+
+    private companion object {
+        const val THUMBNAIL_MAX_SIZE = 1280
     }
 }

@@ -1,13 +1,23 @@
 package com.ltx.audiopeel.ui.components
 
+import android.app.Activity
+import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -36,34 +46,48 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.ltx.audiopeel.ExtractionState
 import com.ltx.audiopeel.OutputFormat
 import com.ltx.audiopeel.R
+import com.ltx.audiopeel.VideoMetadata
 import java.io.File
 
 /**
  * 视频选择卡片
  *
  * @param isSelected 是否已选择视频
+ * @param videoMetadata 视频元数据
  * @param onSelectClick 选择视频按钮点击事件
  * @param modifier 修饰符
+ * @param onThumbnailClick 缩略图点击事件
  */
 @Composable
 fun VideoSelectorCard(
     isSelected: Boolean,
+    videoMetadata: VideoMetadata?,
     onSelectClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onThumbnailClick: (Bitmap) -> Unit = {},
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -73,22 +97,37 @@ fun VideoSelectorCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Default.VideoFile,
-                contentDescription = stringResource(R.string.video_content_description),
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = if (isSelected) stringResource(R.string.video_selected) else stringResource(R.string.select_video_prompt),
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            if (isSelected && videoMetadata?.thumbnail != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    VideoThumbnail(
+                        bitmap = videoMetadata.thumbnail,
+                        onClick = { onThumbnailClick(videoMetadata.thumbnail) })
+                    Spacer(modifier = Modifier.width(12.dp))
+                    VideoInfoRow(
+                        metadata = videoMetadata, modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Default.VideoFile,
+                    contentDescription = stringResource(R.string.video_content_description),
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.select_video_prompt),
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Button(
                 onClick = onSelectClick,
                 modifier = Modifier.fillMaxWidth(),
@@ -97,6 +136,152 @@ fun VideoSelectorCard(
                 Text(if (!isSelected) stringResource(R.string.select_video) else stringResource(R.string.change_video))
             }
         }
+    }
+}
+
+/**
+ * 视频缩略图
+ *
+ * @param bitmap 视频缩略图
+ * @param onClick 点击事件
+ */
+@Composable
+private fun VideoThumbnail(
+    bitmap: Bitmap,
+    onClick: () -> Unit,
+) {
+    val ratio = if (bitmap.height > 0) {
+        bitmap.width.toFloat() / bitmap.height.toFloat()
+    } else {
+        16f / 9f
+    }
+    val contentDescription = stringResource(R.string.video_thumbnail)
+    val interactionSource = remember { MutableInteractionSource() }
+    Image(
+        bitmap = bitmap.asImageBitmap(),
+        contentDescription = contentDescription,
+        modifier = Modifier
+            .height(100.dp)
+            .aspectRatio(ratio)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(
+                interactionSource = interactionSource, indication = null, onClick = onClick
+            ),
+        contentScale = ContentScale.Fit
+    )
+}
+
+/**
+ * 全屏缩略图预览覆盖层
+ *
+ * @param bitmap 视频缩略图
+ * @param onDismiss 关闭事件
+ */
+@Composable
+fun FullscreenThumbnailOverlay(
+    bitmap: Bitmap,
+    onDismiss: () -> Unit,
+) {
+    // 拦截系统返回键
+    BackHandler(enabled = true, onBack = onDismiss)
+    // 隐藏系统栏
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val window = (view.context as? Activity)?.window
+        val controller: WindowInsetsControllerCompat? = window?.let {
+            WindowCompat.getInsetsController(it, view)
+        }
+        controller?.apply {
+            // 允许用户滑动短暂显示系统栏
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable(
+                interactionSource = interactionSource, indication = null, onClick = onDismiss
+            ), contentAlignment = Alignment.Center
+    ) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = stringResource(R.string.video_thumbnail),
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
+
+/**
+ * 视频信息行
+ *
+ * @param metadata 视频元数据
+ * @param modifier 修饰符
+ */
+@Composable
+private fun VideoInfoRow(
+    metadata: VideoMetadata,
+    modifier: Modifier = Modifier,
+) {
+    val infoParts = buildList {
+        if (metadata.durationMs > 0) {
+            add(stringResource(R.string.duration_label, formatDuration(metadata.durationMs)))
+        }
+        if (!metadata.audioCodec.isNullOrEmpty()) {
+            add(stringResource(R.string.audio_codec_label, metadata.audioCodec.uppercase()))
+        }
+        if (metadata.fileSize > 0) {
+            add(stringResource(R.string.file_size_label, formatFileSize(metadata.fileSize)))
+        }
+    }
+    if (infoParts.isNotEmpty()) {
+        Column(modifier = modifier) {
+            infoParts.forEach { part ->
+                Text(
+                    text = part,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 格式化时长
+ *
+ * @param ms 毫秒
+ */
+private fun formatDuration(ms: Long): String {
+    if (ms <= 0) return "00:00"
+    val totalSeconds = ms / 1000
+    val seconds = totalSeconds % 60
+    val minutes = (totalSeconds / 60) % 60
+    val hours = totalSeconds / 3600
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
+    }
+}
+
+/**
+ * 格式化文件大小
+ *
+ * @param bytes 字节
+ */
+private fun formatFileSize(bytes: Long): String {
+    return when {
+        bytes >= 1_000_000_000 -> "%.2f GB".format(bytes / 1_000_000_000.0)
+        bytes >= 1_000_000 -> "%.2f MB".format(bytes / 1_000_000.0)
+        bytes >= 1_000 -> "%.2f KB".format(bytes / 1_000.0)
+        else -> "$bytes B"
     }
 }
 
@@ -120,13 +305,10 @@ fun FormatSelectorSection(
     onFormatSelect: (OutputFormat) -> Unit,
     onExtractClick: () -> Unit,
     onCancelClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(),
-        exit = fadeOut(),
-        modifier = modifier
+        visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
@@ -137,8 +319,7 @@ fun FormatSelectorSection(
             Spacer(modifier = Modifier.height(8.dp))
             val formats = OutputFormat.entries
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 formats.forEach { format ->
                     FilterChip(
@@ -170,7 +351,11 @@ fun FormatSelectorSection(
                     Spacer(modifier = Modifier.width(16.dp))
                     Text(stringResource(R.string.extracting_progress, progressPercent))
                 } else {
-                    Text(stringResource(R.string.start_extraction), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        stringResource(R.string.start_extraction),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
             // 取消提取按钮
@@ -186,7 +371,10 @@ fun FormatSelectorSection(
                         .padding(top = 10.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel_extraction))
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.cancel_extraction)
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.cancel_extraction))
                 }
@@ -210,7 +398,7 @@ fun ExtractionResultSection(
     onShareClick: (File, String) -> Unit,
     onSaveClick: (File, String) -> Unit,
     onOpenFolderClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
         visible = extractionState is ExtractionState.Success || extractionState is ExtractionState.Error,
@@ -227,6 +415,7 @@ fun ExtractionResultSection(
                     onOpenFolderClick = onOpenFolderClick
                 )
             }
+
             is ExtractionState.Error -> {
                 val errorMessage = when {
                     extractionState.messageResId != null -> stringResource(extractionState.messageResId)
@@ -234,6 +423,7 @@ fun ExtractionResultSection(
                 }
                 ExtractionFailedCard(message = errorMessage)
             }
+
             else -> {}
         }
     }
@@ -255,7 +445,7 @@ fun ExtractionSuccessCard(
     onShareClick: (File, String) -> Unit,
     onSaveClick: (File, String) -> Unit,
     onOpenFolderClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     var customFileName by remember(outPath) {
         mutableStateOf(File(outPath).nameWithoutExtension)
@@ -329,15 +519,17 @@ fun ExtractionSuccessCard(
                         onSaveClick(File(outPath), customFileName.trim())
                     }, enabled = isNameValid, modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.SaveAlt, contentDescription = stringResource(R.string.save_file))
+                    Icon(
+                        Icons.Default.SaveAlt,
+                        contentDescription = stringResource(R.string.save_file)
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.save_file))
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
             TextButton(
-                onClick = onOpenFolderClick,
-                contentPadding = PaddingValues(0.dp)
+                onClick = onOpenFolderClick, contentPadding = PaddingValues(0.dp)
             ) {
                 Icon(
                     Icons.Default.FolderOpen,
@@ -360,7 +552,7 @@ fun ExtractionSuccessCard(
 @Composable
 fun ExtractionFailedCard(
     message: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -368,8 +560,7 @@ fun ExtractionFailedCard(
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 Icons.Default.Error,
@@ -383,9 +574,7 @@ fun ExtractionFailedCard(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                message,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.error
+                message, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error
             )
         }
     }
