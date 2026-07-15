@@ -1,7 +1,7 @@
 # 音频提取器 [AudioPeel]
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.2-green)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+[![Version](https://img.shields.io/badge/Version-1.3-green)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/total?cacheSeconds=86400)](https://github.com/tianxing-ovo/AudioPeel/releases)
 [![Latest Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/latest/total?cacheSeconds=86400)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
 
@@ -12,6 +12,7 @@
 ## 功能特性
 
 - **视频选择** — 选视频使用 Android Photo Picker，无需申请存储读写权限
+- **视频信息** — 选中后展示缩略图、时长、音轨编码与文件大小，点击可全屏预览
 - **多格式输出** — 支持 MP3 / M4A / WAV / FLAC / OGG
 - **智能推荐** — 自动检测内嵌音频编码并推荐格式，如 AAC→M4A，兼容时优先流复制
 - **快速提取** — SAF（Storage Access Framework，存储访问框架）直读减少拷贝，编码匹配时可直接复制音轨，并限制 FFmpeg 线程数

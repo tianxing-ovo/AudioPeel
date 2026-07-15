@@ -1,7 +1,7 @@
 # AudioPeel
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.2-green)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+[![Version](https://img.shields.io/badge/Version-1.3-green)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/total?cacheSeconds=86400)](https://github.com/tianxing-ovo/AudioPeel/releases)
 [![Latest Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/latest/total?cacheSeconds=86400)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
 
@@ -12,6 +12,7 @@ A lightweight Android video-to-audio tool. Export to MP3 / M4A / WAV / FLAC / OG
 ## Features
 
 - **Video picker** — Uses Android Photo Picker, so selecting a video needs no storage read/write permission
+- **Video info** — Shows thumbnail, duration, audio codec, and file size after selection; tap for fullscreen preview
 - **Multiple formats** — Supports MP3 / M4A / WAV / FLAC / OGG
 - **Smart suggestion** — Detects embedded audio codec and suggests a format such as AAC→M4A, preferring stream copy when compatible
 - **Fast extraction** — SAF (Storage Access Framework) direct read reduces copies, stream-copies the audio track when codecs match, and bounds FFmpeg thread count
