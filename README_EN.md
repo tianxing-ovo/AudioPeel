@@ -1,25 +1,25 @@
 # AudioPeel
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.3-green)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+[![Version](https://img.shields.io/github/v/release/tianxing-ovo/AudioPeel?label=Version)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/total?cacheSeconds=86400)](https://github.com/tianxing-ovo/AudioPeel/releases)
 [![Latest Downloads](https://img.shields.io/github/downloads/tianxing-ovo/AudioPeel/latest/total?cacheSeconds=86400)](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
 
 [简体中文](README.md) | [English](README_EN.md)
 
-A lightweight Android video-to-audio tool. Export to MP3 / M4A / WAV / FLAC / OGG — ad-free and free to use.
+A lightweight Android video-to-audio tool that exports to MP3 / M4A / WAV / FLAC / OGG
 
 ## Features
 
-- **Video picker** — Uses Android Photo Picker, so selecting a video needs no storage read/write permission
-- **Video info** — Shows thumbnail, duration, audio codec, and file size after selection; tap for fullscreen preview
+- **Video picker** — Select a video without requesting storage read/write permission
+- **Video info** — Shows ⌈thumbnail/duration/audio codec/file size⌋ after selection and supports fullscreen preview on tap
 - **Multiple formats** — Supports MP3 / M4A / WAV / FLAC / OGG
-- **Smart suggestion** — Detects embedded audio codec and suggests a format such as AAC→M4A, preferring stream copy when compatible
-- **Fast extraction** — SAF (Storage Access Framework) direct read reduces copies, stream-copies the audio track when codecs match, and bounds FFmpeg thread count
-- **Progress & cancel** — Circular progress with percentage, and cancel support
-- **Preview** — Media3 ExoPlayer preview with more stable seeking and less jump-back
-- **File management** — Rename and save under `/Music/AudioPeel`, works across Android storage models, and clears old private-output files before each extraction
-- **Share** — FileProvider sharing to apps such as WeChat, QQ, and Telegram
+- **Smart suggestion** — Detects embedded audio codec and suggests a suitable output format
+- **Fast extraction** — Reads the video directly to reduce copying and stream-copies the audio track when codecs match for faster extraction
+- **Progress & cancel** — Shows circular progress with percentage and supports canceling extraction
+- **Audio preview** — Preview the extracted audio after extraction succeeds
+- **File management** — Supports renaming and saving to `/Music/AudioPeel` and opening the audio folder
+- **Share** — Supports sharing to apps such as ⌈WeChat/QQ/Telegram⌋
 
 ## Quick Start
 
@@ -30,8 +30,10 @@ A lightweight Android video-to-audio tool. Export to MP3 / M4A / WAV / FLAC / OG
 ### Install
 
 1. Download the latest APK from [Releases](https://github.com/tianxing-ovo/AudioPeel/releases/latest)
+   - Use `arm64-v8a` on most Android phones
+   - Use `x86_64` on emulators
 2. Install and open the app
-3. Pick a video, confirm the output format, then extract
+3. Pick a video and confirm the output format before extracting
 
 ## Screenshots
 
@@ -54,7 +56,7 @@ A lightweight Android video-to-audio tool. Export to MP3 / M4A / WAV / FLAC / OG
 ### Prerequisites
 
 1. **Android Studio** (a recent stable release recommended)
-2. **Java 11+** (compatible with the project Gradle version)
+2. **Java 17+** (compatible with the project Gradle version)
 3. **Android SDK** (`minSdk` 24, `compileSdk` / `targetSdk` 37)
 
 ### Steps
@@ -66,7 +68,7 @@ A lightweight Android video-to-audio tool. Export to MP3 / M4A / WAV / FLAC / OG
 2. Open the project root in Android Studio
 3. Wait for Gradle sync
 4. Connect a device or emulator
-5. Run `Run 'app'`, or `./gradlew assembleDebug`
+5. Run `Run 'app'` or `./gradlew assembleDebug`
 
 ## Permissions
 
@@ -74,18 +76,17 @@ Least-privilege by design; no sensitive permissions requested:
 
 |                 Note                  |                                        Detail                                         |
 |:-------------------------------------:|:-------------------------------------------------------------------------------------:|
-|         No storage permission         | Video picking uses Photo Picker and `READ_EXTERNAL_STORAGE` is generally not required |
+|         No storage permission         | Picking a video needs no storage read/write permission |
 |         No network permission         |                     Fully offline processing with no data upload                      |
 | No background/notification permission |                                     Not requested                                     |
 
 ## Contributing
 
-Issues and Pull Requests are welcome:
+Issues and Pull Requests are welcome
 
 1. Fork this repository
-2. Create a branch: `git checkout -b feature/your-feature`
-3. Commit: `git commit -m "feat: add your feature"`
-4. Push to your fork remote and open a Pull Request
+2. Create a feature branch and commit your changes
+3. Push and open a Pull Request
 
 ## License
 
